@@ -14,7 +14,7 @@ from utils.gradcam import save_gradcam
 from utils.metrics import evaluate_model, plot_confusion
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--device", default="auto")

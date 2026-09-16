@@ -1,5 +1,5 @@
 experiment:
   name: frozen
-  bases: [default.yml]
+  bases: [baseline.yml]
 model:
   freeze_backbone: true

@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import math
 from pathlib import Path
+from typing import Any, Self, TypeAlias
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+
+Overrides: TypeAlias = str | list[str | list[str]] | tuple[str, ...] | None
+ConfigInput: TypeAlias = BaseModel | DictConfig | dict[str, Any]
 
 
-def project_path(value="."):
+def project_path(value: str | Path = ".") -> Path:
     path = Path(value).expanduser()
     if path.is_absolute():
         return path
@@ -32,15 +38,16 @@ class DatasetConfig(ConfigSection):
     split_file: str = Field(default="datasets/oxford_iiit_pet_split.json")
     resize_size: int = Field(default=256, gt=0)
     image_size: int = Field(default=224, gt=0)
-    normalization_mean: list = Field(default_factory=lambda: [0.485, 0.456, 0.406])
-    normalization_std: list = Field(default_factory=lambda: [0.229, 0.224, 0.225])
+    # Keep raw element types until the validators reject strings/bools/nonfinite values.
+    normalization_mean: list[Any] = Field(default_factory=lambda: [0.485, 0.456, 0.406])
+    normalization_std: list[Any] = Field(default_factory=lambda: [0.229, 0.224, 0.225])
     num_workers: int = Field(default=4, ge=0)
     pin_memory: bool = Field(default=True)
     persistent_workers: bool = Field(default=True)
 
     @field_validator("normalization_mean", "normalization_std")
     @classmethod
-    def _check_normalization(cls, value, info):
+    def _check_normalization(cls, value: list[Any], info: ValidationInfo) -> list[float]:
         name = "dataset." + info.field_name
         if len(value) != 3:
             raise ValueError(name + " must contain 3 values")
@@ -52,7 +59,7 @@ class DatasetConfig(ConfigSection):
         return [float(item) for item in value]
 
     @model_validator(mode="after")
-    def _check_dataset(self):
+    def _check_dataset(self) -> Self:
         if self.resize_size < self.image_size:
             raise ValueError("dataset.resize_size must be >= dataset.image_size")
         if self.persistent_workers and self.num_workers == 0:
@@ -74,7 +81,7 @@ class AugmentationConfig(ConfigSection):
     mixup_alpha: float = Field(default=0.2)
 
     @model_validator(mode="after")
-    def _check_mixup(self):
+    def _check_mixup(self) -> Self:
         if self.mixup and self.mixup_alpha <= 0:
             raise ValueError("augmentation.mixup_alpha must be positive when MixUp is enabled")
         return self
@@ -100,7 +107,7 @@ class TrainConfig(ConfigSection):
     learning_rate: float = Field(default=1e-4, gt=0)
     weight_decay: float = Field(default=1e-4, ge=0)
     momentum: float = Field(default=0.9, ge=0)
-    betas: list = Field(default_factory=lambda: [0.9, 0.999])
+    betas: list[Any] = Field(default_factory=lambda: [0.9, 0.999])
     scheduler: str = Field(default="none")
     scheduler_step_size: int = Field(default=5, gt=0)
     scheduler_gamma: float = Field(default=0.1, gt=0)
@@ -114,7 +121,7 @@ class TrainConfig(ConfigSection):
 
     @field_validator("optimizer")
     @classmethod
-    def _check_optimizer(cls, value):
+    def _check_optimizer(cls, value: str) -> str:
         value = str(value).lower()
         allowed = {"adamw", "adam", "sgd"}
         if value not in allowed:
@@ -125,7 +132,7 @@ class TrainConfig(ConfigSection):
 
     @field_validator("scheduler")
     @classmethod
-    def _check_scheduler(cls, value):
+    def _check_scheduler(cls, value: str) -> str:
         value = str(value).lower()
         allowed = {"none", "step", "cosine"}
         if value not in allowed:
@@ -136,7 +143,7 @@ class TrainConfig(ConfigSection):
 
     @field_validator("betas")
     @classmethod
-    def _check_betas(cls, value):
+    def _check_betas(cls, value: list[Any]) -> list[float]:
         values = list(value)
         if len(values) != 2 or any(not 0 < item < 1 for item in values):
             raise ValueError("train.betas must contain two values in (0, 1)")
@@ -152,7 +159,7 @@ class RuntimeConfig(ConfigSection):
 
     @field_validator("device")
     @classmethod
-    def _check_device(cls, value):
+    def _check_device(cls, value: str) -> str:
         if not str(value).strip():
             raise ValueError("runtime.device cannot be empty")
         return value
@@ -173,18 +180,18 @@ class ExperimentMetaConfig(ConfigSection):
     """Identity of one experiment: its name and the files it inherits."""
 
     name: str = Field(default="baseline")
-    bases: list = Field(default_factory=list)
+    bases: list[Any] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
-    def _check_name(cls, value):
+    def _check_name(cls, value: str) -> str:
         if not str(value).strip():
             raise ValueError("experiment.name cannot be empty")
         return value
 
     @field_validator("bases")
     @classmethod
-    def _check_bases(cls, value):
+    def _check_bases(cls, value: list[Any]) -> list[str]:
         names = [str(item) for item in value]
         if any(not item.strip() for item in names):
             raise ValueError("experiment.bases entries cannot be empty")
@@ -203,7 +210,7 @@ class ExperimentConfig(ConfigSection):
     paths: PathsConfig = Field(default_factory=PathsConfig)
 
     @model_validator(mode="after")
-    def _check_experiment(self):
+    def _check_experiment(self) -> Self:
         ratios = [
             self.dataset.train_ratio,
             self.dataset.val_ratio,
@@ -218,13 +225,13 @@ class ExperimentConfig(ConfigSection):
         return self
 
 
-def get_default_config():
+def get_default_config() -> ExperimentConfig:
     """Return the default experiment configuration."""
 
     return ExperimentConfig()
 
 
-def _resolve_config_file(config_path):
+def _resolve_config_file(config_path: str | Path) -> Path:
     """Validate an absolute file path without guessing directories or suffixes."""
     path = Path(config_path)
     if not path.is_absolute():
@@ -234,7 +241,7 @@ def _resolve_config_file(config_path):
     return path.resolve()
 
 
-def _normalise_base_list(value):
+def _normalise_base_list(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, (str, Path)):
@@ -244,7 +251,7 @@ def _normalise_base_list(value):
     raise TypeError("experiment.bases must be a file name or a list of file names")
 
 
-def _experiment_base_names(loaded):
+def _experiment_base_names(loaded: DictConfig) -> list[str]:
     """Read the direct ``experiment.bases`` entries of a raw YAML document."""
 
     experiment = loaded.get("experiment")
@@ -253,7 +260,7 @@ def _experiment_base_names(loaded):
     return []
 
 
-def _load_yaml_with_bases(config_path, active_chain=()):
+def _load_yaml_with_bases(config_path: str | Path, active_chain: tuple[Path, ...] = ()) -> DictConfig:
     """Load an absolute YAML path; resolve bases relative to their declaring file."""
 
     path = _resolve_config_file(config_path)
@@ -285,7 +292,7 @@ def _load_yaml_with_bases(config_path, active_chain=()):
     return resolved
 
 
-def _split_override_string(value):
+def _split_override_string(value: str) -> list[str]:
     """Split comma-separated overrides without breaking list values."""
 
     result = []
@@ -331,7 +338,7 @@ def _split_override_string(value):
     return result
 
 
-def _normalise_overrides(overrides):
+def _normalise_overrides(overrides: Overrides) -> list[str]:
     """Accept a list of ``key=value`` strings, or a single comma-separated string."""
 
     if overrides is None:
@@ -358,7 +365,7 @@ def _normalise_overrides(overrides):
     return result
 
 
-def apply_overrides(config, overrides):
+def apply_overrides(config: DictConfig, overrides: Overrides) -> DictConfig:
     """Merge dotlist overrides into an OmegaConf config."""
 
     override_list = _normalise_overrides(overrides)
@@ -367,7 +374,7 @@ def apply_overrides(config, overrides):
     return OmegaConf.merge(config, OmegaConf.from_dotlist(override_list))
 
 
-def _to_omega(config):
+def _to_omega(config: ConfigInput) -> DictConfig:
     if isinstance(config, BaseModel):
         return OmegaConf.create(config.model_dump())
     if isinstance(config, DictConfig):
@@ -375,7 +382,7 @@ def _to_omega(config):
     return OmegaConf.create(config)
 
 
-def load_config(config_path, overrides=None):
+def load_config(config_path: str | Path, overrides: Overrides = None) -> ExperimentConfig:
     """Load an absolute YAML path, merge overrides, then validate.
 
     Parameters
@@ -400,7 +407,7 @@ def load_config(config_path, overrides=None):
         experiment:
           name: mixup
           bases:
-            - default.yml
+            - baseline.yml
     """
 
     config = _to_omega(ExperimentConfig())
@@ -413,7 +420,7 @@ def load_config(config_path, overrides=None):
     return ExperimentConfig.model_validate(data)
 
 
-def config_to_dict(config, resolve=True):
+def config_to_dict(config: ConfigInput, resolve: bool = True) -> dict[str, Any]:
     """Convert a config into a plain Python dictionary."""
 
     if isinstance(config, BaseModel):
@@ -424,7 +431,7 @@ def config_to_dict(config, resolve=True):
     return value
 
 
-def config_to_yaml(config, resolve=True):
+def config_to_yaml(config: ConfigInput, resolve: bool = True) -> str:
     """Return a readable YAML representation of a config."""
 
     if isinstance(config, BaseModel):
@@ -432,7 +439,7 @@ def config_to_yaml(config, resolve=True):
     return OmegaConf.to_yaml(_to_omega(config), resolve=resolve)
 
 
-def save_config(config, path, resolve=True):
+def save_config(config: ConfigInput, path: str | Path, resolve: bool = True) -> Path:
     """Save a config to the requested path and return that path."""
 
     target = Path(path)

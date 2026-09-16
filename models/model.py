@@ -1,11 +1,17 @@
-from torch import nn
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Self
+from torch import Tensor, nn
 from torchvision.models import ResNet18_Weights, resnet18
+
+if TYPE_CHECKING:
+    from utils.config import ExperimentConfig
 
 
 class PetClassifier(nn.Module):
 
-    def __init__(self, num_classes=37, pretrained=True, dropout=0.0,
-                 freeze_backbone=False):
+    def __init__(self, num_classes: int = 37, pretrained: bool = True, dropout: float = 0.0,
+                 freeze_backbone: bool = False) -> None:
         super().__init__()
         if isinstance(num_classes, bool) or not isinstance(num_classes, int) or num_classes <= 0:
             raise ValueError("num_classes must be a positive integer")
@@ -22,7 +28,7 @@ class PetClassifier(nn.Module):
         )
         self.set_freeze_backbone(freeze_backbone)
 
-    def set_freeze_backbone(self, freeze=True):
+    def set_freeze_backbone(self, freeze: bool = True) -> Self:
         """Switch between head-only and full fine-tuning.
 
         Set this before creating the optimizer, or rebuild its parameter groups
@@ -33,7 +39,7 @@ class PetClassifier(nn.Module):
         self.backbone.train(self.training and not freeze)
         return self
 
-    def train(self, mode=True):
+    def train(self, mode: bool = True) -> Self:
         super().train(mode)
         # Freezing parameters alone does not freeze BatchNorm running statistics.
         # Keep the feature extractor in eval mode during head-only training.
@@ -41,14 +47,14 @@ class PetClassifier(nn.Module):
             self.backbone.eval()
         return self
 
-    def forward(self, images):
+    def forward(self, images: Tensor) -> Tensor:
         # Do not wrap this in no_grad: Grad-CAM may need input gradients even
         # when backbone parameters are frozen.
         features = self.backbone(images)
         return self.classifier(features)
 
 
-def create_model(cfg):
+def create_model(cfg: ExperimentConfig) -> PetClassifier:
     """Build the model from the project's full experiment configuration."""
     model_cfg = cfg.model
     if model_cfg.name != "resnet18":

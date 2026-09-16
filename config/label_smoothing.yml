@@ -1,5 +1,5 @@
 experiment:
   name: label_smoothing
-  bases: [default.yml]
+  bases: [baseline.yml]
 train:
   label_smoothing: 0.1

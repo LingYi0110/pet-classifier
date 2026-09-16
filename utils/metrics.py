@@ -1,5 +1,11 @@
 """Classification metrics and publication-friendly experiment plots."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TypedDict
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -9,7 +15,13 @@ from sklearn.metrics import confusion_matrix, f1_score
 from tqdm import tqdm
 
 
-def classification_metrics(targets, predictions, top5, num_classes):
+class ConfusedPair(TypedDict):
+    count: int
+    classes: list[str]
+
+
+def classification_metrics(targets: Sequence[int], predictions: Sequence[int],
+                           top5: Sequence[bool], num_classes: int) -> dict[str, float]:
     return {
         "top1": float(np.mean(np.array(targets) == np.array(predictions))),
         "top5": float(np.mean(top5)),
@@ -19,9 +31,12 @@ def classification_metrics(targets, predictions, top5, num_classes):
 
 
 @torch.no_grad()
-def evaluate_model(model, loader, device, desc="Evaluate"):
+def evaluate_model(model: torch.nn.Module, loader: torch.utils.data.DataLoader,
+                   device: torch.device, desc: str = "Evaluate") -> tuple[dict[str, float], list[int], list[int]]:
     model.eval()
-    targets, predictions, top5 = [], [], []
+    targets: list[int] = []
+    predictions: list[int] = []
+    top5: list[bool] = []
     loss_sum = 0.0
     progress = tqdm(loader, desc=desc, unit="batch", dynamic_ncols=True)
     for images, labels in progress:
@@ -42,7 +57,8 @@ def evaluate_model(model, loader, device, desc="Evaluate"):
     return metrics, targets, predictions
 
 
-def plot_confusion(targets, predictions, classes, path):
+def plot_confusion(targets: Sequence[int], predictions: Sequence[int],
+                   classes: Sequence[str], path: str | Path) -> list[ConfusedPair]:
     matrix = confusion_matrix(targets, predictions, labels=range(len(classes)))
     fig, ax = plt.subplots(figsize=(16, 14))
     im = ax.imshow(matrix, cmap="Blues")
@@ -60,7 +76,7 @@ def plot_confusion(targets, predictions, classes, path):
             if n > 0]
 
 
-def plot_history(history, path):
+def plot_history(history: Sequence[dict[str, float]], path: str | Path) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     epochs = [row["epoch"] for row in history]
     for key in ("train_loss", "val_loss"):

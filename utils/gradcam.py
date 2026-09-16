@@ -1,15 +1,27 @@
 """Grad-CAM for the predicted class, including frozen backbones."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 from torch.nn import functional as F
 
+if TYPE_CHECKING:
+    from models.model import PetClassifier
+    from utils.config import ExperimentConfig
 
-def save_gradcam(model, image, target, classes, cfg, device, path):
+
+def save_gradcam(model: PetClassifier, image: torch.Tensor, target: int,
+                 classes: Sequence[str], cfg: ExperimentConfig,
+                 device: torch.device, path: str | Path) -> None:
     model.eval()
-    activations = []
+    activations: list[torch.Tensor] = []
     handle = model.backbone.layer4[-1].register_forward_hook(
         lambda module, inputs, output: activations.append(output))
     try:

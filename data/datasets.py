@@ -1,31 +1,47 @@
+from __future__ import annotations
+
 import random
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 import torch
-from PIL import ImageFile
+from PIL import Image, ImageFile
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms as T
 from torchvision.datasets import OxfordIIITPet
 
-from utils.config import project_path
+from utils.config import ExperimentConfig, project_path
+
+
+class SplitPayload(TypedDict):
+    seed: int
+    train_ratio: float
+    val_ratio: float
+    test_ratio: float
+    train: list[int]
+    val: list[int]
+    test: list[int]
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-class PetSubset(Dataset):
+class PetSubset(Dataset[tuple[torch.Tensor, int]]):
     """Map a global index onto the official trainval then test torchvision splits."""
 
-    def __init__(self, sources, indices, transform):
-        self.sources = sources
-        self.indices = list(indices)
-        self.transform = transform
-        self.classes = sources[0].classes
+    def __init__(self, sources: Sequence[OxfordIIITPet], indices: Sequence[int],
+                 transform: Callable[[Image.Image], torch.Tensor]) -> None:
+        self.sources: Sequence[OxfordIIITPet] = sources
+        self.indices: list[int] = list(indices)
+        self.transform: Callable[[Image.Image], torch.Tensor] = transform
+        self.classes: list[str] = sources[0].classes
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.indices)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: int) -> tuple[torch.Tensor, int]:
         index = self.indices[item]
         source = self.sources[0]
         if index >= len(source):
@@ -38,19 +54,20 @@ class PetSubset(Dataset):
 class PetData:
     """Train/val/test loaders plus the 37 breed names."""
 
-    def __init__(self, train, val, test, classes, split=None):
-        self.train = train
-        self.val = val
-        self.test = test
-        self.classes = list(classes)
-        self.split = split
+    def __init__(self, train: DataLoader, val: DataLoader, test: DataLoader,
+                 classes: Sequence[str], split: SplitPayload | None = None) -> None:
+        self.train: DataLoader = train
+        self.val: DataLoader = val
+        self.test: DataLoader = test
+        self.classes: list[str] = list(classes)
+        self.split: SplitPayload | None = split
 
     @property
-    def num_classes(self):
+    def num_classes(self) -> int:
         return len(self.classes)
 
 
-def build_transforms(cfg, training):
+def build_transforms(cfg: ExperimentConfig, training: bool) -> T.Compose:
     """Build the PIL → tensor pipeline for one split.
 
     Training keeps stochastic crop/flip (and optional RandAugment) online so
@@ -89,7 +106,7 @@ def build_transforms(cfg, training):
     )
 
 
-def _read_split_records(root):
+def _read_split_records(root: Path) -> tuple[list[tuple[str, int]], list[int]]:
     records = []
     boundaries = []
     annotations = root / "oxford-iiit-pet" / "annotations"
@@ -104,7 +121,7 @@ def _read_split_records(root):
     return records, boundaries
 
 
-def create_split(cfg):
+def create_split(cfg: ExperimentConfig) -> SplitPayload:
     """Prepare source data and return a new split; the caller owns persistence."""
     _load_sources(cfg)
     records, _ = _read_split_records(project_path(cfg.dataset.root))
@@ -133,7 +150,7 @@ def create_split(cfg):
     }
 
 
-def _validate_split(split_payload, n_records, cfg):
+def _validate_split(split_payload: SplitPayload, n_records: int, cfg: ExperimentConfig) -> None:
     if split_payload["seed"] != cfg.dataset.split_seed:
         raise ValueError("Split seed mismatch; use a different dataset.split_file")
     for key in ("train_ratio", "val_ratio", "test_ratio"):
@@ -144,7 +161,7 @@ def _validate_split(split_payload, n_records, cfg):
         raise ValueError("Splits must be disjoint and cover the dataset exactly")
 
 
-def _load_sources(cfg):
+def _load_sources(cfg: ExperimentConfig) -> list[OxfordIIITPet]:
     """Load or download the two official source datasets."""
     root = project_path(cfg.dataset.root)
     sources = [
@@ -161,7 +178,7 @@ def _load_sources(cfg):
     return sources
 
 
-def build_datasets(cfg, split_payload):
+def build_datasets(cfg: ExperimentConfig, split_payload: SplitPayload) -> tuple[dict[str, PetSubset], SplitPayload]:
     """Build subsets using an explicit split, without creating or saving one."""
 
     root = project_path(cfg.dataset.root)
@@ -185,13 +202,13 @@ def build_datasets(cfg, split_payload):
     return datasets, split_payload
 
 
-def seed_worker(worker_id):
+def seed_worker(worker_id: int) -> None:
     seed = torch.initial_seed() % (2**32)
     np.random.seed(seed)
     random.seed(seed)
 
 
-def _make_loader(dataset, cfg, shuffle):
+def _make_loader(dataset: PetSubset, cfg: ExperimentConfig, shuffle: bool) -> DataLoader:
     kwargs = {
         "dataset": dataset,
         "batch_size": cfg.train.batch_size,
@@ -210,7 +227,7 @@ def _make_loader(dataset, cfg, shuffle):
     return DataLoader(**kwargs)
 
 
-def create_dataloaders(cfg, split_payload):
+def create_dataloaders(cfg: ExperimentConfig, split_payload: SplitPayload) -> PetData:
     """Build shuffled train and deterministic val/test loaders from ``cfg``."""
 
     datasets, split_payload = build_datasets(cfg, split_payload=split_payload)

@@ -1,5 +1,5 @@
 experiment:
   name: mixup
-  bases: [default.yml]
+  bases: [baseline.yml]
 augmentation:
   mixup: true

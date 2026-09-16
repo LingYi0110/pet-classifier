@@ -13,19 +13,19 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from data.datasets import create_dataloaders, create_split
+from data.datasets import PetData, create_dataloaders, create_split
 from models.model import create_model
-from utils.config import load_config, project_path, save_config
+from utils.config import ExperimentConfig, load_config, project_path, save_config
 from utils.metrics import evaluate_model, plot_history
 
 
-def resolve_device(name):
+def resolve_device(name: str) -> torch.device:
     if name == "auto":
         name = "cuda" if torch.cuda.is_available() else "cpu"
     return torch.device(name)
 
 
-def prepare_data(cfg):
+def prepare_data(cfg: ExperimentConfig) -> PetData:
     """Reuse a saved split, or generate it before constructing training loaders."""
     path = project_path(cfg.dataset.split_file)
     existing = path.exists()
@@ -43,9 +43,9 @@ def prepare_data(cfg):
     return data
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default="config/default.yml",
+    parser.add_argument("--config", default="config/baseline.yml",
                         help="Absolute path or path relative to this training script")
     parser.add_argument("--override", nargs="+", action="append", default=[])
     args = parser.parse_args()
