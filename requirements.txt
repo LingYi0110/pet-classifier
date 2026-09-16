@@ -1,0 +1,9 @@
+torch
+torchvision
+omegaconf
+pydantic>=2
+numpy
+scikit-learn
+matplotlib
+tensorboard
+tqdm

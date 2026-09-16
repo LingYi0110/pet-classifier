@@ -1,0 +1,69 @@
+experiment:
+  name: baseline
+
+dataset:
+  name: oxford_iiit_pet
+  root: datasets
+  download: true
+  num_classes: 37
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  split_seed: 42
+  split_file: datasets/oxford_iiit_pet_split.json
+  resize_size: 256
+  image_size: 224
+  normalization_mean: [0.485, 0.456, 0.406]
+  normalization_std: [0.229, 0.224, 0.225]
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+
+augmentation:
+  random_crop: true
+  random_horizontal_flip: true
+  rand_augment: false
+  rand_augment_num_ops: 2
+  rand_augment_magnitude: 9
+  mixup: false
+  mixup_alpha: 0.2
+
+model:
+  name: resnet18
+  pretrained: true
+  num_classes: 37
+  dropout: 0.0
+  freeze_backbone: false
+
+train:
+  seed: 42
+  epochs: 15
+  batch_size: 32
+  optimizer: adamw
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  momentum: 0.9
+  betas: [0.9, 0.999]
+  scheduler: none
+  scheduler_step_size: 5
+  scheduler_gamma: 0.1
+  label_smoothing: 0.0
+  gradient_clip_norm: null
+  amp: true
+  early_stopping_patience: null
+  log_every_n_steps: 50
+  validate_every_n_epochs: 1
+  resume_from: null
+
+runtime:
+  device: auto
+  deterministic: true
+  benchmark: false
+
+paths:
+  output_dir: experiments
+  experiment_dir: ${paths.output_dir}/${experiment.name}
+  checkpoint_dir: ${paths.experiment_dir}/checkpoints
+  log_dir: ${paths.experiment_dir}/logs
+  metrics_dir: ${paths.experiment_dir}/metrics
+  visualization_dir: ${paths.experiment_dir}/visualizations
