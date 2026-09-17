@@ -63,7 +63,7 @@ done
 克隆仓库并装依赖：
 
 ```python
-!git clone https://github.com/<用户名>/pet-classifier.git
+!git clone https://github.com/Lingyi0110/pet-classifier.git
 %cd pet-classifier
 !pip install -r requirements.txt
 ```
