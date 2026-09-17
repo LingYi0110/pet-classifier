@@ -9,3 +9,7 @@ experiments/
 *.pt
 
 tmp/
+
+# 依赖只用 requirements.txt 声明，下面两个文件仅本地使用
+pyproject.toml
+uv.lock
