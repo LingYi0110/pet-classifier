@@ -8,5 +8,4 @@ experiments/
 *.pth
 *.pt
 
-# 暂不入库：README 待人工审阅，入库前删除本行
-README.md
+tmp/

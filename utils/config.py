@@ -440,11 +440,14 @@ def config_to_yaml(config: ConfigInput, resolve: bool = True) -> str:
 
 
 def save_config(config: ConfigInput, path: str | Path, resolve: bool = True) -> Path:
-    """Save a config to the requested path and return that path."""
+    """Save a self-contained snapshot without stale relative base references."""
 
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    OmegaConf.save(OmegaConf.create(config_to_dict(config, resolve=resolve)), str(target))
+    snapshot = OmegaConf.create(config_to_dict(config, resolve=resolve))
+    if "experiment" in snapshot:
+        OmegaConf.update(snapshot, "experiment.bases", [], force_add=True)
+    OmegaConf.save(snapshot, str(target))
     return target
 
 

@@ -98,6 +98,8 @@ def main() -> None:
             progress = tqdm(data.train, desc=f"Train {epoch}/{cfg.train.epochs}",
                             unit="batch", dynamic_ncols=True)
             for images, labels in progress:
+                if epoch == 1 and count == 0:
+                    print(f"First training batch: images={list(images.shape)}, labels={list(labels.shape)}")
                 images, labels = images.to(device), labels.to(device)
                 optimizer.zero_grad(set_to_none=True)
                 lam, other = 1.0, labels
